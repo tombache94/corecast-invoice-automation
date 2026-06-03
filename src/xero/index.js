@@ -52,7 +52,7 @@ async function pushInvoiceToXero(invoice, { client, dryRun = false } = {}) {
     contactId: contact.contactID,
     dateFrom: window.from,
     dateTo: window.to,
-    reference,
+    amount: invoice.amount,
   });
 
   if (existing) {

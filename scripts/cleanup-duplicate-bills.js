@@ -1,8 +1,13 @@
 #!/usr/bin/env node
 /**
- * Finds DRAFT bills created by our pipeline (reference starts with "Week ending")
- * that are duplicates of pre-existing bills (same contact, same amount, within 30 days).
- * Deletes the pipeline-created drafts.
+ * Two-pass cleanup:
+ *
+ * Pass 1: Delete our pipeline DRAFT bills ("Week ending" reference) that duplicate
+ * a pre-existing bill (different reference) for the same contact + amount within 7 days.
+ *
+ * Pass 2: For any contact+amount+weekEnding group that has multiple pipeline DRAFT
+ * bills, keep one and delete the rest (caused by multiple push runs with the
+ * date/weekEnding mismatch).
  */
 require('dotenv').config();
 const { config, assertXeroCreds } = require('../src/config');
@@ -22,8 +27,30 @@ function isoDate(d) {
   return (typeof d === 'string' ? d : new Date(d).toISOString()).slice(0, 10);
 }
 
-function daysDiff(a, b) {
-  return Math.abs((new Date(a) - new Date(b)) / 86400000);
+function mondayOf(iso) {
+  var d = new Date(iso + 'T00:00:00Z');
+  var dow = d.getUTCDay(); // 0=Sun
+  var offset = dow === 0 ? -6 : 1 - dow;
+  d.setUTCDate(d.getUTCDate() + offset);
+  return d.toISOString().slice(0, 10);
+}
+
+function sameWeek(a, b) {
+  return mondayOf(a) === mondayOf(b);
+}
+
+async function deleteBill(id, label) {
+  try {
+    await client.sdk.accountingApi.updateInvoice(
+      client.tenantId, id,
+      { invoices: [{ invoiceID: id, status: 'DELETED' }] }
+    );
+    console.log('  DELETED ' + id + ' (' + label + ')');
+    return true;
+  } catch (err) {
+    console.log('  ERROR deleting ' + id + ': ' + (err.message || '?'));
+    return false;
+  }
 }
 
 async function run() {
@@ -41,60 +68,70 @@ async function run() {
   var bills = (res.body && res.body.invoices) ? res.body.invoices : [];
   console.log('Found ' + bills.length + ' active bills.\n');
 
-  // Our bills have reference starting with "Week ending"
   var ourDrafts = bills.filter(function(b) {
     return b.status === 'DRAFT' && b.reference && b.reference.startsWith('Week ending');
   });
-
-  // Other bills (manually entered — no "Week ending" reference)
-  var existing = bills.filter(function(b) {
+  var preExisting = bills.filter(function(b) {
     return !b.reference || !b.reference.startsWith('Week ending');
   });
 
-  console.log('Our pipeline drafts: ' + ourDrafts.length);
-  console.log('Pre-existing bills:  ' + existing.length + '\n');
+  var toDelete = new Set();
 
-  var toDelete = [];
+  // --- Pass 1: our bill duplicates a pre-existing one (same contact+amount, within 7 days) ---
+  console.log('Pass 1: checking against pre-existing bills (7-day window)...');
   ourDrafts.forEach(function(draft) {
+    if (toDelete.has(draft.invoiceID)) return;
     var contactId = draft.contact && draft.contact.contactID;
     var amount = draft.total;
     var date = isoDate(draft.date);
 
-    var match = existing.find(function(e) {
-      var eContactId = e.contact && e.contact.contactID;
-      var eAmount = e.total;
-      var eDate = isoDate(e.date);
-      return eContactId === contactId &&
-             Math.abs(eAmount - amount) < 0.02 &&
-             daysDiff(date, eDate) <= 30;
+    var match = preExisting.find(function(e) {
+      return (e.contact && e.contact.contactID) === contactId &&
+             Math.abs((e.total || 0) - amount) < 0.02 &&
+             sameWeek(date, isoDate(e.date));
     });
 
     if (match) {
-      console.log('DUPLICATE FOUND:');
-      console.log('  Ours:     ' + date + ' ' + (draft.contact && draft.contact.name) + ' $' + amount + ' DRAFT ref="' + draft.reference + '" id=' + draft.invoiceID);
-      console.log('  Existing: ' + isoDate(match.date) + ' ' + (match.contact && match.contact.name) + ' $' + match.total + ' ' + match.status + ' ref="' + (match.reference || '') + '"');
-      toDelete.push(draft.invoiceID);
+      console.log('  DUP (pre-existing): ' + date + ' ' + (draft.contact && draft.contact.name) + ' $' + amount +
+        ' | matches ' + isoDate(match.date) + ' ' + match.status + ' "' + (match.reference || '') + '"');
+      toDelete.add(draft.invoiceID);
     }
   });
 
-  if (!toDelete.length) {
-    console.log('\nNo duplicates found.');
+  // --- Pass 2: multiple pipeline drafts for same contact+amount+weekEnding ---
+  console.log('\nPass 2: checking for multiple pipeline drafts per group...');
+  var groups = {};
+  ourDrafts.forEach(function(draft) {
+    if (toDelete.has(draft.invoiceID)) return;
+    var contactId = draft.contact && draft.contact.contactID;
+    var key = contactId + '|' + draft.total + '|' + draft.reference;
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(draft);
+  });
+
+  Object.keys(groups).forEach(function(key) {
+    var group = groups[key];
+    if (group.length <= 1) return;
+    // Keep the first (oldest), delete the rest
+    console.log('  GROUP: ' + group[0].contact.name + ' $' + group[0].total + ' "' + group[0].reference + '" — ' + group.length + ' bills, keeping 1');
+    for (var i = 1; i < group.length; i++) {
+      toDelete.add(group[i].invoiceID);
+    }
+  });
+
+  if (!toDelete.size) {
+    console.log('\nNo duplicates found. Xero is clean.');
     return;
   }
 
-  console.log('\nDeleting ' + toDelete.length + ' duplicate draft(s)...');
-  for (var i = 0; i < toDelete.length; i++) {
-    var id = toDelete[i];
-    try {
-      await client.sdk.accountingApi.updateInvoice(
-        client.tenantId, id,
-        { invoices: [{ invoiceID: id, status: 'DELETED' }] }
-      );
-      console.log('  DELETED ' + id);
-    } catch (err) {
-      console.log('  ERROR deleting ' + id + ': ' + (err.message || JSON.stringify(err).slice(0, 100)));
-    }
+  console.log('\nDeleting ' + toDelete.size + ' duplicate draft(s)...');
+  var ids = Array.from(toDelete);
+  for (var i = 0; i < ids.length; i++) {
+    var bill = ourDrafts.find(function(b) { return b.invoiceID === ids[i]; });
+    var label = bill ? (isoDate(bill.date) + ' ' + (bill.contact && bill.contact.name) + ' $' + bill.total) : ids[i];
+    await deleteBill(ids[i], label);
   }
+
   console.log('\nDone.');
 }
 

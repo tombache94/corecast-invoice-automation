@@ -155,14 +155,13 @@ class XeroBillsClient {
    * @param {string} [args.dateTo] - ISO yyyy-mm-dd, inclusive upper bound
    * @param {string} [args.reference] - if provided, also requires a Reference match
    */
-  async findExistingBill({ contactId, dateFrom, dateTo, reference }) {
+  async findExistingBill({ contactId, dateFrom, dateTo, amount }) {
     if (!contactId) throw new Error('findExistingBill: contactId is required');
     if (!dateFrom) throw new Error('findExistingBill: dateFrom is required');
     await this.init();
 
     const clauses = [`Type=="ACCPAY"`, `Date>=DateTime(${dateParts(dateFrom)})`];
     if (dateTo) clauses.push(`Date<=DateTime(${dateParts(dateTo)})`);
-    if (reference) clauses.push(`Reference=="${reference.replace(/"/g, '\\"')}"`);
     const where = clauses.join('&&');
 
     const res = await this.sdk.accountingApi.getInvoices(
@@ -176,6 +175,11 @@ class XeroBillsClient {
       ['DRAFT', 'SUBMITTED', 'AUTHORISED', 'PAID'], // statuses — excludes DELETED and VOIDED
     );
     const invoices = res.body?.invoices || [];
+    // Match on amount (±1 cent) so a $4,620 bill doesn't block a $3,960 one for the same contact/week
+    if (amount != null) {
+      const matched = invoices.find((inv) => Math.abs((inv.total || 0) - Number(amount)) < 0.02);
+      return matched || null;
+    }
     return invoices[0] || null;
   }
 
