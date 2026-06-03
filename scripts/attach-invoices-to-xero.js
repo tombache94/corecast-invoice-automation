@@ -46,6 +46,7 @@ async function run() {
   var attached = 0, skipped = 0, errors = 0;
 
   for (var i = 0; i < candidates.length; i++) {
+    if (i > 0) await new Promise(function(r) { setTimeout(r, 2000); }); // stay under Xero's 60 calls/min
     var inv = candidates[i];
     var label = inv.sender + ' $' + inv.amount + ' ' + inv.date;
 

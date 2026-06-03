@@ -167,12 +167,13 @@ class XeroBillsClient {
 
     const res = await this.sdk.accountingApi.getInvoices(
       this.tenantId,
-      undefined, // ifModifiedSince
+      undefined,                              // ifModifiedSince
       where,
       'Date DESC',
-      undefined, // iDs
-      undefined, // invoiceNumbers
-      [contactId], // contactIDs
+      undefined,                              // iDs
+      undefined,                              // invoiceNumbers
+      [contactId],                            // contactIDs
+      ['DRAFT', 'SUBMITTED', 'AUTHORISED', 'PAID'], // statuses — excludes DELETED and VOIDED
     );
     const invoices = res.body?.invoices || [];
     return invoices[0] || null;
