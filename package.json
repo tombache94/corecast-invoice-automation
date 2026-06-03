@@ -1,0 +1,29 @@
+{
+  "name": "corecast-invoice-automation",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Invoice automation for CoreCast: ingest invoices from Outlook, validate against Connecteam timesheets, generate weekly payment summaries.",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "ingest": "node src/index.js ingest",
+    "refresh-dashboard": "node scripts/refresh-dashboard.js",
+    "tag-bills": "node scripts/tag-tracking-categories.js",
+    "file-attachments": "node scripts/file-attachments.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.96.0",
+    "@azure/msal-node": "^2.9.0",
+    "@microsoft/microsoft-graph-client": "^3.0.7",
+    "dotenv": "^16.4.5",
+    "isomorphic-fetch": "^3.0.0",
+    "pdf-parse": "^1.1.1",
+    "proper-lockfile": "^4.1.2",
+    "xero-node": "^15.0.1",
+    "xlsx": "^0.18.5",
+    "zod": "^4.4.3"
+  }
+}

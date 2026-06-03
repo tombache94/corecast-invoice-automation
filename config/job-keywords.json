@@ -1,0 +1,12 @@
+{
+  "_comment": "Maps subject-line keywords to SharePoint destinations. Edit this file to add new jobs — no code change needed. 'library' must be one of the keys in config.filing.libraries (currently 'ACTIVE JOBS' or 'Active Quotes'). 'folder' MUST EXACTLY match an existing SharePoint folder name in that library — Graph PUT silently creates missing folders along the path, so a typo creates a misnamed orphan. Matching is case-insensitive and uses word boundaries — 'Baldivis' matches 'Baldivis pour notes' but not 'Baldivising'. Longest keyword wins on conflict.",
+  "keywords": {
+    "Baldivis": { "library": "ACTIVE JOBS", "folder": "Focus - Parkland Heights - Baldivis" },
+    "Eneabba": { "library": "ACTIVE JOBS", "folder": "Eneabba - Relay Room" },
+    "Power On": { "library": "ACTIVE JOBS", "folder": "Kings Head Substation - Power On Cabling" },
+    "Mirrabooka": { "library": "Active Quotes", "folder": "Mirrabooka Tavern" },
+    "Hilbert": { "library": "Active Quotes", "folder": "Hilbert - Coles and Childcare" },
+    "Wattle Grove Fuel": { "library": "Active Quotes", "folder": "Wattle Grove Fuel Station - Burton Construction" },
+    "Wattle Grove Revo": { "library": "Active Quotes", "folder": "Wattle Grove Revo -  Burton Construction" }
+  }
+}

@@ -1,0 +1,25 @@
+/**
+ * Pre-filter for invoice emails
+ * Returns true if email contains invoice keywords in subject or body
+ */
+
+function isInvoiceEmail(emailData) {
+  const { subject = '', bodyText = '', bodyHtml = '' } = emailData;
+  
+  // Combine all text to search
+  const allText = `${subject} ${bodyText} ${bodyHtml}`.toLowerCase();
+  
+  // Check for invoice keywords
+  const invoiceKeywords = [
+    'invoice',
+    'tax invoice',
+    'inv ',
+    'inv.'
+  ];
+  
+  const isInvoice = invoiceKeywords.some(keyword => allText.includes(keyword));
+  
+  return isInvoice;
+}
+
+module.exports = { isInvoiceEmail };

@@ -1,0 +1,47 @@
+{
+  "_comment": "Email-to-job routing rules used by scripts/daily-orchestrator.js. The classifier scores each rule against (sender domain, sender address, subject, bodyPreview) and assigns the highest-scoring job. If no rule scores above 0, the email is unclassified.",
+  "rules": [
+    {
+      "matchAnyJobName": ["Parkland Heights"],
+      "senderDomains": ["focusbuilding.net.au", "focusbuilding.com"],
+      "senderAddresses": ["owen.desnoo@focusbuilding.net.au"],
+      "keywords": ["parkland heights", "baldivis", "phsc", "progress claim 3"]
+    },
+    {
+      "_comment": "Eneabba — client is Macrete, end-utility is Western Power, structural drawings come from Tekance. Macrete domain alone is not a safe signal (Macrete bills multiple jobs incl. completed Regans Ford), so the keywords carry the weight.",
+      "matchAnyJobName": ["Eneabba"],
+      "senderDomains": ["tekance.com"],
+      "senderAddresses": ["accounts@macrete.com.au"],
+      "keywords": ["eneabba", "tekance", "relay room"]
+    },
+    {
+      "matchAnyJobName": ["Power On"],
+      "senderDomains": [],
+      "senderAddresses": [],
+      "keywords": ["power on", "powerco"]
+    },
+    {
+      "_comment": "Kings Head Substation — client is Power On Cabling (NOT Macrete). SharePoint folder: 'Kings Head Substation - Power On Cabling'. Western Power is the end utility but is also referenced on Eneabba, so it's not a safe keyword.",
+      "matchAnyJobName": ["Kings Head Substation"],
+      "senderDomains": [],
+      "senderAddresses": [],
+      "keywords": ["kings head substation", "king rocks", "kings rock", "king head", "power on cabling"]
+    },
+    {
+      "matchAnyJobName": ["L Wall", "Pennant"],
+      "senderDomains": ["pennantconstruction.com.au"],
+      "senderAddresses": ["james.l@pennantconstruction.com.au"],
+      "keywords": ["l wall", "retaining wall pennant", "pennant construction"]
+    }
+  ],
+  "xeroNotifications": {
+    "senderDomains": ["xero.com", "post.xero.com"],
+    "behavior": "extract-invoice-and-route-via-job-key"
+  },
+  "scoring": {
+    "senderDomain": 10,
+    "senderAddress": 20,
+    "matchAnyJobName": 8,
+    "keyword": 3
+  }
+}

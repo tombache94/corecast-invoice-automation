@@ -1,0 +1,193 @@
+/**
+ * Connecteam API client for fetching timesheet data and validating invoices.
+ * Uses the API key from environment variables.
+ */
+
+const fetch = require('node-fetch');
+
+class ConnecteamClient {
+  constructor(apiKey, baseUrl = 'https://api.connecteam.com', mainTimeClockId = '13723871') {
+    this.apiKey = apiKey;
+    this.baseUrl = baseUrl;
+    this.mainTimeClockId = mainTimeClockId;
+  }
+
+  /**
+   * Make an authenticated request to the Connecteam API.
+   * @param {string} endpoint - API endpoint (e.g., '/users', '/timesheets')
+   * @param {string} method - HTTP method (GET, POST, etc.)
+   * @param {object} body - Request body (optional)
+   * @returns {object} - Parsed JSON response
+   */
+  async request(endpoint, method = 'GET', body = null) {
+    const url = `${this.baseUrl}${endpoint}`;
+    const options = {
+      method,
+      headers: {
+        'X-API-KEY': this.apiKey,
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+    };
+
+    if (body) {
+      options.body = JSON.stringify(body);
+    }
+
+    try {
+      const res = await fetch(url, options);
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(`Connecteam API error: ${res.status} ${data.message || data.error || 'Unknown error'}`);
+      }
+
+      return data;
+    } catch (err) {
+      throw new Error(`Connecteam request failed: ${err.message}`);
+    }
+  }
+
+  /**
+   * Search for a user by name or email.
+   * @param {string} query - Name or email to search for
+   * @returns {object[]} - Array of matching users
+   */
+  async searchUsers(query) {
+    try {
+      // Fetch all users from Connecteam
+      const data = await this.request(`/users/v1/users`);
+
+      // The API returns { requestId: "...", data: { users: [...] } } format
+      const allUsers = data.data?.users || data.users || data;
+
+      if (!Array.isArray(allUsers)) {
+        return [];
+      }
+
+      // Filter users by name (case-insensitive, matches first or last name)
+      const queryLower = query.toLowerCase();
+      return allUsers.filter(user => {
+        const fullName = `${user.firstName || ''} ${user.lastName || ''}`.toLowerCase();
+        const firstNameMatch = (user.firstName || '').toLowerCase().includes(queryLower);
+        const lastNameMatch = (user.lastName || '').toLowerCase().includes(queryLower);
+        const emailMatch = (user.email || '').toLowerCase().includes(queryLower);
+
+        return fullName.includes(queryLower) || firstNameMatch || lastNameMatch || emailMatch;
+      });
+    } catch (err) {
+      console.error(`Error searching users for "${query}":`, err.message);
+      return [];
+    }
+  }
+
+  /**
+   * Get timesheets for a specific user within a date range.
+   * @param {string} mainTimeClockId - Organization's main time clock ID (e.g., 13723871 for CoreCast)
+   * @param {number} userId - User ID to filter timesheets for
+   * @param {string} startDate - ISO date string (e.g., '2026-04-20')
+   * @param {string} endDate - ISO date string (e.g., '2026-05-01')
+   * @returns {object[]} - Array of timesheet entries
+   */
+  async getTimesheets(mainTimeClockId, userId, startDate, endDate) {
+    try {
+      // The timesheet endpoint uses the organization's main time clock ID in the URL path
+      // and userId as a query parameter to filter for that specific user
+      // Format: /time-clock/v1/time-clocks/{mainTimeClockId}/timesheet?userIds={userId}&startDate=...&endDate=...
+      // Note: We don't filter by isApproved=true because invoices arrive before timesheets are approved
+      const endpoint = `/time-clock/v1/time-clocks/${mainTimeClockId}/timesheet?userIds=${userId}&startDate=${startDate}&endDate=${endDate}`;
+
+      const data = await this.request(endpoint);
+
+      // Response format: { requestId: "...", data: { users: [{userId, dailyRecords: [...]}] } }
+      if (data.data && data.data.users && Array.isArray(data.data.users)) {
+        const user = data.data.users[0];
+        if (user && user.dailyRecords) {
+          return user.dailyRecords;
+        }
+      }
+
+      return [];
+    } catch (err) {
+      console.error(`Error fetching timesheets for userId ${userId}:`, err.message);
+      return [];
+    }
+  }
+
+  /**
+   * Get total hours logged by a user for a specific week.
+   * @param {string} senderName - Sender name from invoice (e.g., "Aaron Norris")
+   * @param {string} weekEnding - Week ending date ISO format (e.g., "2026-05-01")
+   * @returns {object} - { userId, name, totalHours, timesheets[], note }
+   */
+  async validateInvoiceHours(senderName, weekEnding) {
+    // Calculate the Sunday-to-Saturday week that contains the weekEnding date
+    // Invoice week ending on Friday (e.g., 2026-05-01) includes the full Sunday-Saturday week
+    const weekEndDate = new Date(weekEnding);
+    const dayOfWeek = weekEndDate.getDay(); // 0=Sunday, 1=Monday, ..., 5=Friday, 6=Saturday
+
+    // Find the Saturday of the same week
+    // If weekEnding is Friday (5), Saturday is +1 day
+    // If weekEnding is Monday (1), Saturday is +5 days
+    // If weekEnding is Sunday (0), Saturday is +6 days
+    const saturdayDate = new Date(weekEndDate);
+    const daysToSaturday = (6 - dayOfWeek) % 7 || 7;
+    saturdayDate.setDate(weekEndDate.getDate() + daysToSaturday);
+
+    // Find the Sunday of that same week (which is 6 days before Saturday)
+    // For example, if Saturday is May 3, Sunday is April 27 (3 - 6 = -3, but in the context of same week)
+    // Actually: Sunday of the week = Saturday - 6 days
+    const sundayDate = new Date(saturdayDate);
+    sundayDate.setDate(saturdayDate.getDate() - 6);
+
+    const startDateStr = sundayDate.toISOString().split('T')[0];
+    const endDateStr = saturdayDate.toISOString().split('T')[0];
+
+    console.log(`  Validating ${senderName} hours for week ${startDateStr} to ${endDateStr}...`);
+
+    // Step 1: Search for the user
+    const users = await this.searchUsers(senderName);
+    if (users.length === 0) {
+      return {
+        userId: null,
+        name: senderName,
+        totalHours: null,
+        timesheets: [],
+        note: `User "${senderName}" not found in Connecteam`,
+      };
+    }
+
+    const user = users[0]; // Take first match
+    const userId = user.id || user.userId;
+
+    // Step 2: Fetch timesheets for that week using the organization's main time clock ID
+    const dailyRecords = await this.getTimesheets(this.mainTimeClockId, userId, startDateStr, endDateStr);
+
+    // Step 3: Calculate total hours from daily records
+    // dailyRecords contains { date, dailyTotalHours, dailyTotalWorkHours, isApproved, ... }
+    let totalHours = 0;
+    let approvedCount = 0;
+    if (Array.isArray(dailyRecords)) {
+      dailyRecords.forEach(record => {
+        // Use dailyTotalWorkHours (excludes unpaid breaks) or fall back to dailyTotalHours
+        const hours = record.dailyTotalWorkHours || record.dailyTotalHours || 0;
+        totalHours += parseFloat(hours) || 0;
+        if (record.isApproved) {
+          approvedCount++;
+        }
+      });
+    }
+
+    return {
+      userId,
+      name: user.name || senderName,
+      totalHours: totalHours > 0 ? totalHours : null,
+      timesheets: dailyRecords || [],
+      note: dailyRecords && dailyRecords.length > 0
+        ? `Found ${dailyRecords.length} daily records totaling ${totalHours} hours (${approvedCount} approved)`
+        : 'No timesheets found for this week',
+    };
+  }
+}
+
+module.exports = { ConnecteamClient };

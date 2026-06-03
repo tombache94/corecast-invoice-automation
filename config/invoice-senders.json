@@ -1,0 +1,10 @@
+{
+  "_comment": "Known invoice senders. Emails from these addresses ALWAYS pass the invoice-email filter, even if the subject doesn't contain invoice keywords. Use this for subcontractors who send invoices from personal Gmail/Outlook accounts with vague subject lines (e.g. 'James Elliott', 'Hours for week'). Match is case-insensitive on the email address.",
+  "senders": [
+    "jamesemail247@gmail.com",
+    "alanifonua93@gmail.com",
+    "accounts@nexus.com.au",
+    "admin@mogulreinforcement.com",
+    "noreply@sg-co.joistapp.com"
+  ]
+}

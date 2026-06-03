@@ -1,0 +1,4 @@
+{
+  "_comment": "Maps sender email domains to a SharePoint destination (typically Accounts Payable). Used as a fallback when no job keyword matches the subject. Lowercase the domain. The 'destination' is optional — if omitted, the global config.filing.accountsPayablePath is used. Add a domain here when you see a recurring supplier in the To Sort notifications.",
+  "domains": {}
+}

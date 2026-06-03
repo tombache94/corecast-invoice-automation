@@ -1,0 +1,43 @@
+{
+  "_comment": "Things no API knows about. Edit this file directly when manual labour is paid in cash, when a Monday job name needs to be linked to a Xero tracking option, or when forecast multipliers change.",
+
+  "jobAliases": {
+    "Parkland Heights - Baldivis": "Baldivis",
+    "21 Colray St — Osbourne Park": "Osbourne Park",
+    "Pennant RTA Work — Neerabup": "Pennant",
+    "L Wall & Retaining Wall — Pennant": "Pennant",
+    "Bunnings Lake": "Bunning Lake",
+    "Montreal — Stage 2": "Montreal"
+  },
+
+  "labourAddOns": [
+    { "job": "Baldivis", "person": "Jack Henderson", "amount": 13539, "hours": 193.42, "note": "not yet in Xero" },
+    { "job": "Baldivis", "person": "Charlie Wilson", "amount": 525, "hours": 7, "note": "manual split — 30 Mar only" },
+    { "job": "Baldivis", "person": "Bobby", "amount": 4498, "hours": 64.25, "xeroContacts": ["Boldbaatar Nyamjav"], "note": "manual split — Boldbaatar Nyamjav, Baldivis portion only. Xero bill covers 4 jobs at $70/hr; this entry replaces the Baldivis share if/when his bill gets tagged." }
+  ],
+
+  "jobBudgets": {
+    "Baldivis": { "labour": 215780, "total": 368458 }
+  },
+
+  "jobMeta": {
+    "Baldivis":  { "panels": 151, "panelsComplete": 102, "areaSqm": 4384 },
+    "Eneabba":   {},
+    "Power On":  {},
+    "Pennant":   {}
+  },
+
+  "labourHourlyRate": 97.78,
+
+  "forecastWinRates": {
+    "conservative": 0.25,
+    "base": 0.40,
+    "optimistic": 0.60,
+    "bestCase": 1.00
+  },
+
+  "company": {
+    "name": "CoreCast Concrete Pty Ltd",
+    "abn": "83 691 535 289"
+  }
+}

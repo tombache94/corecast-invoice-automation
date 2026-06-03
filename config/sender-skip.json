@@ -1,0 +1,6 @@
+{
+  "_comment": "Senders to exclude entirely from the weekly invoice matcher. Match is case-insensitive substring on the invoice's sender name. Use this for people whose emails sometimes look like invoices but aren't real subcontractor invoices that should flow through the labour-match or bills-to-Xero pipeline.",
+  "senders": [
+    "Brayden Taylor"
+  ]
+}
